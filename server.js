@@ -1,119 +1,96 @@
-// server.js
+// server.js (Render-optimized)
+
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const path = require('path');
-require('dotenv').config();
-
-const dotenv = require('dotenv');
-
-
-const envFile =
-  process.env.NODE_ENV === 'production'
-    ? '.env.production'
-    : '.env.development';
-
-dotenv.config({ path: path.resolve(__dirname, envFile) });
+require('dotenv').config(); // only needed for local development
 
 const { connectRedis } = require('./config/redisClient');
-require('./cron/syncShiprocketCron');
+require('./cron/syncShiprocketCron'); // make sure cron is safe for multiple instances
+
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+// =========================
+// CORS
+// =========================
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://e-commerce-shopping-delta.vercel.app',
+  'https://e-commerce-shopping-5y9f.vercel.app',
+];
 
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 
-// ✅ 1. CORS FIRST
-app.use(cors({
-  origin: [
-    'http://localhost:5173', // for local development
-    'https://e-commerce-shopping-delta.vercel.app', 
-    'https://e-commerce-shopping-5y9f.vercel.app',// ✅ your deployed frontend
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.options('*', cors({ origin: allowedOrigins, credentials: true }));
 
-app.options('*', cors({
-  origin: [
-    'http://localhost:5173',
-    'https://e-commerce-shopping-delta.vercel.app',
-    'https://e-commerce-shopping-5y9f.vercel.app'
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-
-// ✅ 2. BODY PARSER (must come BEFORE any routes)
+// =========================
+// BODY PARSER
+// =========================
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ 3. ROUTES
-const adminRoutes = require('./routes/admin');
-app.use('/api/admin', adminRoutes);
+// =========================
+// ROUTES
+// =========================
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api', require('./routes/upload'));
+app.use('/api/payment', require('./routes/payment'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/contact', require('./routes/contact'));
+app.use('/api', require('./routes/content'));
+app.use('/api', require('./routes/reviews'));
+app.use('/api', require('./routes/orders'));
+app.use('/api/user', require('./routes/userOrders'));
 
-const uploadRoutes = require("./routes/upload");
-app.use("/api", uploadRoutes);
-
-
-const paymentRoutes = require('./routes/payment');
-app.use('/api/payment', paymentRoutes);
-
-const authRoutes = require('./routes/auth');
-app.use('/api/auth', authRoutes);
-
-
-
-const contactRoutes = require('./routes/contact');
-app.use('/api/contact', contactRoutes);
-
-const contentRoutes = require('./routes/content');
-app.use('/api', contentRoutes);
-
-const ordersRoutes = require('./routes/orders');
-app.use('/api', ordersRoutes);
-
-const userOrdersRoutes = require('./routes/userOrders');
-app.use('/api/user', userOrdersRoutes);
-
-
-const reviewRoutes = require('./routes/reviews');
-app.use('/api', reviewRoutes);
-
-// Basic health check
+// =========================
+// Health Check
+// =========================
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
-// Start server after optional DB connect
+// =========================
+// DATABASE + SERVER START
+// =========================
 async function start() {
-  const mongo = process.env.MONGO_URI;
   try {
-    if (mongo) {
-      await mongoose.connect(mongo, { 
-        useNewUrlParser: true, 
-        useUnifiedTopology: true 
+    // MongoDB
+    if (process.env.MONGO_URI) {
+      await mongoose.connect(process.env.MONGO_URI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
       });
       console.log('✅ Connected to MongoDB');
     } else {
-      console.log('⚠️  MONGO_URI not set — skipping MongoDB connection (server will still run)');
+      console.warn(
+        '⚠️  MONGO_URI not set — skipping MongoDB connection (server will still run)'
+      );
     }
 
+    // Redis
+    await connectRedis();
+    console.log('✅ Connected to Redis!');
+
+    // Start server
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   } catch (err) {
     console.error('❌ Failed to start server', err);
     process.exit(1);
-  } 
-
-  
-connectRedis()
-  .then(() => console.log('Connected to Redis!'))
-  .catch(err => console.error('Redis connection failed:', err));
+  }
 }
 
 start();
 
-// Fallback for unmatched routes
+// =========================
+// FALLBACK ROUTES
+// =========================
 app.use((req, res) => {
   if (req.path.startsWith('/api')) {
     return res.status(404).json({ message: 'API route not found' });
@@ -121,7 +98,9 @@ app.use((req, res) => {
   res.status(404).send('Not found');
 });
 
-// Global error handler
+// =========================
+// GLOBAL ERROR HANDLER
+// =========================
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   const status = err.status || 500;
