@@ -17,8 +17,7 @@ const PORT = process.env.PORT || 5001;
 // =========================
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://e-commerce-shopping-delta.vercel.app',
-  'https://e-commerce-shopping-5y9f.vercel.app',
+ 'https://sai-naman-frontend-c4db-1oikkwiv6-sai-namans-projects.vercel.app',
 ];
 
 app.use(
