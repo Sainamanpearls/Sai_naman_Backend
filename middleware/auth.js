@@ -3,6 +3,7 @@ const User = require('../models/User');
 
 // Admin emails list
 const ADMIN_EMAILS = [
+  'sainamanpearls1@gmail.com',
   'akash@gmail.com',
   'admin@sainamanpearls.com',
 ];
