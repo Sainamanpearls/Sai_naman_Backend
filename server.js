@@ -17,8 +17,7 @@ const PORT = process.env.PORT || 5001;
 // =========================
 const allowedOrigins = [
   'http://localhost:5173',
- 'https://sai-naman-frontend.vercel.app',
- 'https://sai-naman-frontend-c4db-2ebmfzyhk-sai-namans-projects.vercel.app'
+  'https://www.sainamanpearls.com/'
 ];
 
 app.use(
